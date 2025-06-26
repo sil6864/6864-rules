@@ -1,0 +1,38 @@
+name: Daily Rules Merge
+
+on:
+  schedule:
+    - cron: "0 16 * * *"  # 每天 UTC 时间 16:00 运行
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  merge-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
+      run: pip install requests
+
+    - name: Merge rules
+      run: python merge.py
+
+    - name: Commit changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add rules.txt
+        if git diff-index --quiet HEAD; then
+          echo "No changes"
+        else
+          git commit -m "Auto-update: Merged rules $(date -u +'%Y-%m-%d')"
+          git push
+        fi
