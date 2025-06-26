@@ -33,6 +33,14 @@ jobs:
         if git diff-index --quiet HEAD; then
           echo "No changes"
         else
-          git commit -m "Auto-update: Merged rules $(date -u +'%Y-%m-%d')"
+          git commit -m "Auto-update: Merged rules $(date -u +'%Y-%m-%d %H:%M:%S')"
           git push
         fi
+        
+    - name: Validate rules format
+      run: |
+        # 检查文件是否以有效注释开头
+        head -n 10 rules.txt | grep -q '! Merged AdBlock Rules'
+        # 检查首条规则类型
+        head -n 11 rules.txt | tail -n 1 | grep -qE '^@@|^\|\||^\/'
+        echo "Rules format validation passed"
