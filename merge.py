@@ -1,34 +1,46 @@
-import requests
-from datetime import datetime
+name: Daily Rules Merge
 
-def download_rules(url):
-    response = requests.get(url)
-    response.raise_for_status()
-    return response.text.splitlines()
+on:
+  schedule:
+    - cron: "0 16 * * *"  # 每天 UTC 时间 16:00 运行
+  workflow_dispatch:      # 允许手动触发
 
-def save_rules(rules, filename):
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(f"! Merged AdBlock Rules (AdBlock DNS + anti-AD)\n")
-        f.write(f"! Generated at: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
-        f.write(f"! Total unique rules: {len(rules)}\n")
-        f.write("\n".join(sorted(rules)))
+jobs:
+  merge-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-def main():
-    source1 = "https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdns.txt"
-    source2 = "https://anti-ad.net/easylist.txt"
-    
-    # 下载规则文件
-    rules1 = download_rules(source1)
-    rules2 = download_rules(source2)
-    
-    # 提取有效规则（非注释/空行）
-    active_rules = set()
-    for line in rules1 + rules2:
-        if line and not line.startswith('!') and not line.startswith('#'):
-            active_rules.add(line.strip())
-    
-    # 保存合并后的规则
-    save_rules(active_rules, "rules.txt")
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
 
-if __name__ == "__main__":
-    main()
+    - name: Install dependencies
+      run: pip install requests
+
+    - name: Merge rules
+      run: python merge.py
+
+    - name: Commit changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add rules.txt
+        if git diff-index --quiet HEAD; then
+          echo "No changes"
+        else
+          git commit -m "Auto-update: Merged rules $(date -u +'%Y-%m-%d %H:%M:%S')"
+          git push
+        fi
+        
+    - name: Validate rules format
+      run: |
+        # 检查文件是否以有效注释开头
+        head -n 10 rules.txt | grep -q '! Merged AdBlock Rules'
+        # 检查首条规则类型
+        head -n 11 rules.txt | tail -n 1 | grep -qE '^@@|^\|\||^\/'
+        echo "Rules format validation passed"
